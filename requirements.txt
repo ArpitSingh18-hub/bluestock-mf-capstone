@@ -6,3 +6,4 @@ seaborn>=0.13.0
 plotly>=5.20.0
 sqlalchemy>=2.0.0
 scipy>=1.13.0
+tabulate>=0.10.0
