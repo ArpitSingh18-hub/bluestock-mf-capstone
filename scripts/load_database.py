@@ -1,6 +1,14 @@
 from pathlib import Path
 import pandas as pd
-import sqlite3
+
+from sqlalchemy import (
+    create_engine,
+    text
+)
+
+# ============================================================
+# PATHS
+# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,11 +31,21 @@ PROCESSED_DIR = (
     / "processed"
 )
 
+# ============================================================
+# DATABASE ENGINE
+# ============================================================
+
 print("=" * 60)
 print("SQLITE DATA WAREHOUSE LOADER")
 print("=" * 60)
 
-conn = sqlite3.connect(DB_PATH)
+engine = create_engine(
+    f"sqlite:///{DB_PATH}"
+)
+
+# ============================================================
+# CREATE SCHEMA
+# ============================================================
 
 with open(
     SCHEMA_PATH,
@@ -35,13 +53,22 @@ with open(
     encoding="utf-8"
 ) as f:
 
-    conn.executescript(f.read())
+    schema_sql = f.read()
+
+with engine.begin() as conn:
+
+    for statement in schema_sql.split(";"):
+
+        statement = statement.strip()
+
+        if statement:
+            conn.execute(text(statement))
 
 print("Schema Created")
 
-# ------------------------
+# ============================================================
 # DIM FUND
-# ------------------------
+# ============================================================
 
 fund_df = pd.read_csv(
     PROCESSED_DIR
@@ -63,7 +90,7 @@ dim_fund = fund_df[
 
 dim_fund.to_sql(
     "dim_fund",
-    conn,
+    engine,
     if_exists="append",
     index=False
 )
@@ -72,9 +99,9 @@ print(
     f"dim_fund loaded: {len(dim_fund)} rows"
 )
 
-# ------------------------
+# ============================================================
 # FACT NAV
-# ------------------------
+# ============================================================
 
 nav_df = pd.read_csv(
     PROCESSED_DIR
@@ -89,7 +116,7 @@ nav_df.columns = [
 
 nav_df.to_sql(
     "fact_nav",
-    conn,
+    engine,
     if_exists="append",
     index=False
 )
@@ -98,9 +125,9 @@ print(
     f"fact_nav loaded: {len(nav_df)} rows"
 )
 
-# ------------------------
+# ============================================================
 # FACT PERFORMANCE
-# ------------------------
+# ============================================================
 
 perf_df = pd.read_csv(
     PROCESSED_DIR
@@ -121,7 +148,7 @@ fact_perf = perf_df[
 
 fact_perf.to_sql(
     "fact_performance",
-    conn,
+    engine,
     if_exists="append",
     index=False
 )
@@ -130,9 +157,9 @@ print(
     f"fact_performance loaded: {len(fact_perf)} rows"
 )
 
-# ------------------------
+# ============================================================
 # FACT TRANSACTIONS
-# ------------------------
+# ============================================================
 
 txn_df = pd.read_csv(
     PROCESSED_DIR
@@ -152,7 +179,7 @@ fact_txn = txn_df[
 
 fact_txn.to_sql(
     "fact_transactions",
-    conn,
+    engine,
     if_exists="append",
     index=False
 )
@@ -161,22 +188,55 @@ print(
     f"fact_transactions loaded: {len(fact_txn)} rows"
 )
 
-cursor = conn.cursor()
+# ============================================================
+# VERIFY TABLES
+# ============================================================
 
-tables = cursor.execute(
+tables = pd.read_sql(
     """
     SELECT name
     FROM sqlite_master
-    WHERE type='table';
-    """
-).fetchall()
+    WHERE type='table'
+    ORDER BY name
+    """,
+    engine
+)
 
 print("\nTables Created")
 
-for t in tables:
-    print(t[0])
+for table in tables["name"]:
+    print(table)
 
-conn.close()
+# ============================================================
+# RECORD COUNTS
+# ============================================================
+
+print("\nRow Counts")
+
+for table in [
+    "dim_fund",
+    "fact_nav",
+    "fact_performance",
+    "fact_transactions"
+]:
+
+    count = pd.read_sql(
+        f"""
+        SELECT COUNT(*) AS total_rows
+        FROM {table}
+        """,
+        engine
+    )
+
+    print(
+        f"{table}: {count.iloc[0]['total_rows']} rows"
+    )
+
+# ============================================================
+# CLEANUP
+# ============================================================
+
+engine.dispose()
 
 print("\nDatabase Build Complete")
 print(DB_PATH)

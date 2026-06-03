@@ -77,3 +77,38 @@ FROM fact_transactions
 GROUP BY state
 ORDER BY txn_count DESC
 LIMIT 10;
+
+-- ==========================================
+-- QUERY 8
+--Top 10 Funds By 5-Year Return
+-- ==========================================
+
+SELECT
+    amfi_code,
+    return_5yr_pct
+FROM fact_performance
+ORDER BY return_5yr_pct DESC
+LIMIT 10;
+
+
+-- ==========================================
+-- QUERY 9
+-- Average NAV
+-- ==========================================
+
+SELECT
+    AVG(nav) AS avg_nav
+FROM fact_nav;
+
+--==================================
+--Query 10
+--Transaction Amount By State
+--==================================
+
+
+SELECT
+    state,
+    SUM(amount_inr) AS total_amount
+FROM fact_transactions
+GROUP BY state
+ORDER BY total_amount DESC;

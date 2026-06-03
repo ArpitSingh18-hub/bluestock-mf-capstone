@@ -38,3 +38,11 @@ CREATE TABLE fact_transactions (
     state TEXT,
     city TEXT
 );
+
+CREATE TABLE dim_date (
+    date_id INTEGER PRIMARY KEY,
+    full_date DATE,
+    year INTEGER,
+    month INTEGER,
+    quarter INTEGER
+);
