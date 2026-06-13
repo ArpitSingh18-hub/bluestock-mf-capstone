@@ -7,7 +7,8 @@ from sqlalchemy import (
 )
 
 # ============================================================
-# PATHS
+# BLUESTOCK MF CAPSTONE
+# SQLITE DATA WAREHOUSE LOADER
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -62,7 +63,9 @@ with engine.begin() as conn:
         statement = statement.strip()
 
         if statement:
-            conn.execute(text(statement))
+            conn.execute(
+                text(statement)
+            )
 
 print("Schema Created")
 
@@ -104,15 +107,27 @@ print(
 # ============================================================
 
 nav_df = pd.read_csv(
-    PROCESSED_DIR
-    / "02_nav_history_clean.csv"
+    PROCESSED_DIR / "02_nav_history_clean.csv"
 )
 
-nav_df.columns = [
-    "amfi_code",
-    "nav_date",
-    "nav"
-]
+nav_df.rename(
+    columns={
+        "date": "nav_date"
+    },
+    inplace=True
+)
+
+nav_df["nav_date"] = pd.to_datetime(
+    nav_df["nav_date"],
+    format="%Y-%m-%d",
+    errors="coerce"
+)
+
+nav_df["amfi_code"] = (
+    nav_df["amfi_code"]
+    .astype(float)
+    .astype(int)
+)
 
 nav_df.to_sql(
     "fact_nav",
@@ -124,6 +139,50 @@ nav_df.to_sql(
 print(
     f"fact_nav loaded: {len(nav_df)} rows"
 )
+
+# ============================================================
+# DIM DATE
+# ============================================================
+
+date_dim = pd.DataFrame({
+    "full_date":
+    sorted(
+        nav_df["nav_date"]
+        .dropna()
+        .dt.normalize()
+        .unique()
+    )
+})
+
+date_dim["year"] = date_dim["full_date"].dt.year
+date_dim["quarter"] = date_dim["full_date"].dt.quarter
+date_dim["month"] = date_dim["full_date"].dt.month
+date_dim["month_name"] = date_dim["full_date"].dt.month_name()
+
+date_dim.insert(
+    0,
+    "date_id",
+    range(
+        1,
+        len(date_dim) + 1
+    )
+)
+
+date_dim = date_dim.drop_duplicates(
+    subset=["full_date"]
+)
+
+date_dim.to_sql(
+    "dim_date",
+    engine,
+    if_exists="append",
+    index=False
+)
+
+print(
+    f"dim_date loaded: {len(date_dim)} rows"
+)
+
 
 # ============================================================
 # FACT PERFORMANCE
@@ -205,6 +264,7 @@ tables = pd.read_sql(
 print("\nTables Created")
 
 for table in tables["name"]:
+
     print(table)
 
 # ============================================================
@@ -214,10 +274,13 @@ for table in tables["name"]:
 print("\nRow Counts")
 
 for table in [
+
     "dim_fund",
+    "dim_date",
     "fact_nav",
     "fact_performance",
     "fact_transactions"
+
 ]:
 
     count = pd.read_sql(
@@ -231,6 +294,64 @@ for table in [
     print(
         f"{table}: {count.iloc[0]['total_rows']} rows"
     )
+
+# ============================================================
+# WAREHOUSE SUMMARY
+# ============================================================
+
+fund_count = pd.read_sql(
+    """
+    SELECT COUNT(*) AS total
+    FROM dim_fund
+    """,
+    engine
+)
+
+date_count = pd.read_sql(
+    """
+    SELECT COUNT(*) AS total
+    FROM dim_date
+    """,
+    engine
+)
+
+nav_count = pd.read_sql(
+    """
+    SELECT COUNT(*) AS total
+    FROM fact_nav
+    """,
+    engine
+)
+
+txn_count = pd.read_sql(
+    """
+    SELECT COUNT(*) AS total
+    FROM fact_transactions
+    """,
+    engine
+)
+
+print("\n" + "=" * 60)
+print("WAREHOUSE SUMMARY")
+print("=" * 60)
+
+print(
+    f"Funds Loaded      : {fund_count.iloc[0,0]}"
+)
+
+print(
+    f"Dates Loaded      : {date_count.iloc[0,0]}"
+)
+
+print(
+    f"NAV Records       : {nav_count.iloc[0,0]}"
+)
+
+print(
+    f"Transactions      : {txn_count.iloc[0,0]}"
+)
+
+print("=" * 60)
 
 # ============================================================
 # CLEANUP

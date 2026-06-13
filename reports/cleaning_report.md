@@ -1,5 +1,7 @@
 # Data Cleaning Report
 
+## Summary
+
 | dataset                      |   rows |   duplicates_removed |   missing_before |   missing_after |
 |:-----------------------------|-------:|---------------------:|-----------------:|----------------:|
 | 01_fund_master.csv           |     40 |                    0 |                0 |               0 |
@@ -14,3 +16,21 @@
 | 10_benchmark_indices.csv     |   8050 |                    0 |                0 |               0 |
 | 125497_live_nav.csv          |      1 |                    0 |                0 |               0 |
 | combined_live_nav.csv        |      5 |                    0 |                0 |               0 |
+
+## Cleaning Steps Applied
+
+1. Duplicate removal
+
+2. Missing value treatment
+   - Numeric columns → Median
+   - Text columns → 'Unknown'
+
+3. Date conversion
+
+4. Text standardization
+
+5. Weekend/Holiday NAV handling
+   - Reindexed to full date range
+   - Forward-filled NAV values
+
+6. Exported cleaned datasets
